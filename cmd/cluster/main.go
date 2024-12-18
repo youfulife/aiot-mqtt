@@ -3,19 +3,51 @@ package main
 import (
     "flag"
     "log"
+    "log/slog"
     "os"
     "os/signal"
     "syscall"
 
     mqtt "github.com/mochi-mqtt/server/v2"
-    "github.com/mochi-mqtt/server/v2/hooks/auth"
-    "github.com/mochi-mqtt/server/v2/listeners"
+    "github.com/mochi-mqtt/server/v2/cluster"
+    "github.com/mochi-mqtt/server/v2/config"
 )
 
+func setupMqttServer(configFile string) *mqtt.Server {
+    configBytes, err := os.ReadFile(configFile)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    options, err := config.FromBytes(configBytes)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    server := mqtt.New(options)
+
+    level := new(slog.LevelVar)
+    server.Log = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+        Level: level,
+    }))
+    level.Set(slog.LevelDebug)
+
+    return server
+}
+
+func setupClusterAgent(configFile string) *cluster.Agent {
+
+    conf := cluster.ConfigLoad(configFile)
+    agent := cluster.NewAgent(conf)
+    err := agent.Bootstrap()
+    if err != nil {
+        log.Fatal(err)
+    }
+    return agent
+}
+
 func main() {
-    tcpAddr := flag.String("tcp", ":1883", "network address for TCP listener")
-    wsAddr := flag.String("ws", ":1882", "network address for Websocket listener")
-    infoAddr := flag.String("info", ":8080", "network address for web info dashboard listener")
+    configFile := flag.String("config", "config.yaml", "path to mochi config yaml or json file")
     flag.Parse()
 
     sigs := make(chan os.Signal, 1)
@@ -26,38 +58,9 @@ func main() {
         done <- true
     }()
 
-    server := mqtt.New(nil)
-    _ = server.AddHook(new(auth.AllowHook), nil)
-
-    tcp := listeners.NewTCP(listeners.Config{
-        ID:      "t1",
-        Address: *tcpAddr,
-    })
-    err := server.AddListener(tcp)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    ws := listeners.NewWebsocket(listeners.Config{
-        ID:      "ws1",
-        Address: *wsAddr,
-    })
-    err = server.AddListener(ws)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    stats := listeners.NewHTTPStats(
-        listeners.Config{
-            ID:      "info",
-            Address: *infoAddr,
-        },
-        server.Info,
-    )
-    err = server.AddListener(stats)
-    if err != nil {
-        log.Fatal(err)
-    }
+    server := setupMqttServer(*configFile)
+    agent := setupClusterAgent(*configFile)
+    agent.BindServer(server)
 
     go func() {
         err := server.Serve()

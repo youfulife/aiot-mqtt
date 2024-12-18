@@ -1,4 +1,4 @@
-cmd/mqtt
+cmd/cluster/mqtt
 .DS_Store
 *.db
 .idea
