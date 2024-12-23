@@ -113,7 +113,8 @@ func (a *Agent) broadcastPublish(pk *packets.Packet) {
 }
 
 func (a *Agent) broadcastMessage(message []byte) {
-    err := a.serf.UserEvent(a.Id, message, false)
+    // Events with the same name within a short time frame are coalesced into one event, although this can be disabled using the -coalesce=false command line argument.
+    err := a.serf.UserEvent(a.config.NodeName, message, false)
     if err != nil {
         a.server.Log.Error("broadcast message failed", err)
     }
@@ -178,7 +179,12 @@ func (a *Agent) readFixedHeader(b []byte, fh *packets.FixedHeader) error {
 }
 
 func (a *Agent) handleUserEvent(e serf.UserEvent) {
-    a.server.Log.Debug("handle user event", e.String())
+    // ignore self event 
+    if e.Name == a.config.NodeName {
+        return
+    }
+    
+    a.server.Log.Debug("handle user event", "user event", e.String())
 
     var m message.Message
     if err := m.MsgpackLoad(e.Payload); err != nil {
@@ -188,7 +194,7 @@ func (a *Agent) handleUserEvent(e serf.UserEvent) {
 
     switch m.Type {
     case packets.Publish:
-        a.server.Log.Debug("handle publish message")
+        a.server.Log.Debug("handle publish message", "message", string(m.JsonBytes()))
 
         pk := packets.Packet{
             FixedHeader:     packets.FixedHeader{Type: packets.Publish},

@@ -1,0 +1,27 @@
+listeners:
+  - type: "tcp"
+    id: "tcp1"
+    address: ":1884"
+#  - type: "ws"
+#    id: "ws1"
+#    address: ":1882"
+#  - type: "sysinfo"
+#    id: "stats"
+#    address: ":1880"
+hooks:
+  auth:
+    allow_all: true
+  debug:
+    debug: true
+options:
+  inline_client: true
+
+cluster:
+  node-name: node-001  #The name of this node. This must be unique in the cluster.If nodename is not set, use the local hostname.
+  bind-addr: 127.0.0.1 #Configuration related to what address to bind to and ports to listen on.
+  bind-port: 7947 #The port is used for both UDP and TCP gossip. Used for member discovery and join.
+  members: [ 127.0.0.1:7946 ]  #Seeds member list, format such as 192.168.0.103:7946,192.168.0.104:7946
+  queue-depth: 10240 #Size of Memberlist's internal channel which handles UDP messages.
+  inbound-pool-size: 40960 #The maximum number of goroutine to process incoming messages.
+  outbound-pool-size: 40960 #The maximum number of goroutine to process outgoing messages.
+  inout-pool-nonblocking: false #Pool size is unlimited, when inout-pool-nonblocking is true, inbound-pool-size and outbound-pool-size is inoperative.
